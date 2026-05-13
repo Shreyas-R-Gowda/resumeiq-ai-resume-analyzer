@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
 import { demoResponse } from "@/lib/demo-analysis";
-import { analyzeResumeWithGroq, getAnalysisErrorMessage } from "@/lib/groq";
-import { parseResumeFile, ResumeParsingError } from "@/lib/resume-parser";
 import type { AnalyzeErrorResponse } from "@/types/resume";
 import { supportedMimeTypes, uploadSchema } from "@/lib/validation";
 
@@ -13,6 +11,50 @@ function errorResponse(message: string, status: number) {
     { success: false, error: message },
     { status },
   );
+}
+
+function getRuntimeErrorPayload(error: unknown) {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "ResumeParsingError" &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    "statusCode" in error &&
+    typeof error.statusCode === "number"
+  ) {
+    return {
+      message: error.message,
+      statusCode: error.statusCode,
+    };
+  }
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string" &&
+    "statusCode" in error &&
+    typeof error.statusCode === "number"
+  ) {
+    return {
+      message: error.message,
+      statusCode: error.statusCode,
+    };
+  }
+
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      statusCode: 500,
+    };
+  }
+
+  return {
+    message: "Something went wrong while analyzing the resume.",
+    statusCode: 500,
+  };
 }
 
 export async function POST(request: Request) {
@@ -59,6 +101,8 @@ export async function POST(request: Request) {
       return errorResponse("Resume is too large. Upload a file under 8 MB.", 400);
     }
 
+    const { parseResumeFile } = await import("@/lib/resume-parser");
+
     console.error("[analyze] Starting resume extraction", {
       fileName: file.name,
       fileType: file.type,
@@ -78,8 +122,10 @@ export async function POST(request: Request) {
 
     if (!process.env.GROQ_API_KEY) {
       console.error("[analyze] Missing GROQ_API_KEY");
-      return errorResponse("Missing GROQ_API_KEY.", 500);
+      return errorResponse("Missing GROQ_API_KEY in Vercel environment variables.", 500);
     }
+
+    const { analyzeResumeWithGroq } = await import("@/lib/groq");
 
     console.error("[analyze] Sending content to Groq", {
       resumeLength: resumeText.length,
@@ -101,13 +147,8 @@ export async function POST(request: Request) {
       fileName: file.name,
     });
   } catch (error) {
-    if (error instanceof ResumeParsingError) {
-      console.error("[analyze] Resume parsing failed", error);
-      return errorResponse(error.message, error.statusCode);
-    }
-
-    const { message, statusCode } = getAnalysisErrorMessage(error);
     console.error("[analyze] Runtime failure", error);
+    const { message, statusCode } = getRuntimeErrorPayload(error);
     return errorResponse(message, statusCode);
   }
 }

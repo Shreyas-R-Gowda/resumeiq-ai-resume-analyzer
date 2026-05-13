@@ -76,7 +76,7 @@ function parseAnalysisResponse(
 }
 
 async function requestAnalysis(prompt: string) {
-  return groq.chat.completions.create({
+  const request = groq.chat.completions.create({
     model: groqModel,
     temperature: 0.2,
     response_format: {
@@ -93,6 +93,14 @@ async function requestAnalysis(prompt: string) {
       },
     ],
   });
+
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(new GroqResponseError("Groq request timed out. Please try again.", 504));
+    }, 45000);
+  });
+
+  return Promise.race([request, timeout]);
 }
 
 export async function analyzeResumeWithGroq(
@@ -101,7 +109,7 @@ export async function analyzeResumeWithGroq(
 ): Promise<AnalysisResult> {
   if (!process.env.GROQ_API_KEY) {
     throw new GroqResponseError(
-      "Missing GROQ_API_KEY. Add it to .env.local before analyzing resumes.",
+      "Missing GROQ_API_KEY in Vercel environment variables.",
       500,
     );
   }
@@ -111,7 +119,17 @@ export async function analyzeResumeWithGroq(
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
+      console.log("[groq] AI request starting", {
+        attempt: attempt + 1,
+        model: groqModel,
+        resumeLength: resumeText.length,
+        hasJobDescription: Boolean(jobDescription?.trim()),
+      });
       const response = await requestAnalysis(prompt);
+      console.log("[groq] AI response received", {
+        attempt: attempt + 1,
+        choiceCount: response.choices.length,
+      });
       const content = response.choices[0]?.message?.content;
       if (!content) {
         throw new GroqResponseError("Groq returned an empty response.", 502);
@@ -119,6 +137,7 @@ export async function analyzeResumeWithGroq(
 
       return parseAnalysisResponse(content, resumeText, jobDescription);
     } catch (error) {
+      console.error("[groq] AI request failed", error);
       lastError = error;
     }
   }

@@ -17,9 +17,14 @@ export async function parseResumeFile(file: File) {
 
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     try {
+      console.log("[resume-parser] PDF extraction starting", {
+        fileName: file.name,
+        fileSize: file.size,
+      });
       const text = await extractTextFromPdf(buffer);
       return normalizeResumeText(text);
     } catch (error) {
+      console.error("[resume-parser] PDF extraction failed", error);
       if (error instanceof PdfExtractionError) {
         throw new ResumeParsingError(error.message, error.statusCode);
       }
@@ -35,8 +40,22 @@ export async function parseResumeFile(file: File) {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     file.name.toLowerCase().endsWith(".docx")
   ) {
-    const result = await mammoth.extractRawText({ buffer });
-    return normalizeResumeText(result.value);
+    try {
+      console.log("[resume-parser] DOCX extraction starting", {
+        fileName: file.name,
+        fileSize: file.size,
+      });
+      const result = await mammoth.extractRawText({ buffer });
+      console.log("[resume-parser] DOCX parsed", {
+        extractedLength: result.value.length,
+      });
+      return normalizeResumeText(result.value);
+    } catch (error) {
+      console.error("[resume-parser] DOCX extraction failed", error);
+      throw new ResumeParsingError(
+        "Unable to extract text from this DOCX file. Please try another file.",
+      );
+    }
   }
 
   throw new Error("Unsupported file type. Please upload a PDF or DOCX resume.");

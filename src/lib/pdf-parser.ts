@@ -1,5 +1,3 @@
-import { getDocument, VerbosityLevel } from "pdfjs-dist/legacy/build/pdf.mjs";
-
 export class PdfExtractionError extends Error {
   statusCode: number;
 
@@ -11,23 +9,29 @@ export class PdfExtractionError extends Error {
 }
 
 export async function extractTextFromPdf(buffer: Buffer) {
-  const loadingTask = getDocument({
-    data: new Uint8Array(buffer),
-    disableFontFace: true,
-    isImageDecoderSupported: false,
-    isOffscreenCanvasSupported: false,
-    stopAtErrors: true,
-    useSystemFonts: false,
-    useWorkerFetch: false,
-    verbosity: VerbosityLevel.ERRORS,
-  });
-
   try {
+    const { getDocument, VerbosityLevel } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const loadingTask = getDocument({
+      data: new Uint8Array(buffer),
+      disableFontFace: true,
+      isImageDecoderSupported: false,
+      isOffscreenCanvasSupported: false,
+      stopAtErrors: true,
+      useSystemFonts: false,
+      useWorkerFetch: false,
+      verbosity: VerbosityLevel.ERRORS,
+    });
+
+    console.log("[pdf-parser] PDF document loading started");
     const pdf = await loadingTask.promise;
     const pages: string[] = [];
 
     try {
       for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        console.log("[pdf-parser] Reading page", {
+          pageNumber,
+          totalPages: pdf.numPages,
+        });
         const page = await pdf.getPage(pageNumber);
 
         try {
@@ -61,14 +65,18 @@ export async function extractTextFromPdf(buffer: Buffer) {
       );
     }
 
+    console.log("[pdf-parser] PDF parsed", {
+      pageCount: pages.length,
+      extractedLength: pages.join("\n\n").length,
+    });
+
     return pages.join("\n\n");
   } catch (error) {
-    await loadingTask.destroy();
-
     if (error instanceof PdfExtractionError) {
       throw error;
     }
 
+    console.error("[pdf-parser] PDF extraction failed", error);
     throw new PdfExtractionError(
       "Unable to extract text from this PDF. Please try another file.",
     );
