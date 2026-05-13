@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { demoResponse } from "@/lib/demo-analysis";
 import { analyzeResumeWithGroq, getAnalysisErrorMessage } from "@/lib/groq";
-import { parseResumeFile } from "@/lib/resume-parser";
+import { parseResumeFile, ResumeParsingError } from "@/lib/resume-parser";
 import { supportedMimeTypes, uploadSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -64,6 +64,10 @@ export async function POST(request: Request) {
       fileName: file.name,
     });
   } catch (error) {
+    if (error instanceof ResumeParsingError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+
     const { message, statusCode } = getAnalysisErrorMessage(error);
     return NextResponse.json({ error: message }, { status: statusCode });
   }

@@ -5,7 +5,7 @@ Modern resume analysis MVP built with Next.js App Router, TypeScript, Tailwind C
 ## Features
 
 - Drag-and-drop PDF or DOCX resume upload
-- Server-side text extraction with `pdf-parse` and `mammoth`
+- Server-side text extraction with `pdfjs-dist` and `mammoth`
 - Secure Groq API route using `GROQ_API_KEY`
 - OpenAI SDK compatibility via Groq's `https://api.groq.com/openai/v1` base URL
 - Structured JSON-only AI response validation with Zod
@@ -20,7 +20,7 @@ Modern resume analysis MVP built with Next.js App Router, TypeScript, Tailwind C
 ```bash
 npx create-next-app@latest ai-resume-analyzer --ts --tailwind --eslint --app --import-alias "@/*" --use-npm
 cd ai-resume-analyzer
-npm install openai pdf-parse mammoth recharts lucide-react zod class-variance-authority clsx tailwind-merge jspdf html2canvas @radix-ui/react-slot
+npm install openai pdfjs-dist mammoth recharts lucide-react zod class-variance-authority clsx tailwind-merge jspdf html2canvas @radix-ui/react-slot
 ```
 
 This repository has already been scaffolded with those dependencies.
@@ -43,6 +43,7 @@ src/
     upload-form.tsx
   lib/
     groq.ts
+    pdf-parser.ts
     prompts.ts
     resume-parser.ts
     validation.ts

@@ -1,15 +1,33 @@
 import mammoth from "mammoth";
+import { extractTextFromPdf, PdfExtractionError } from "@/lib/pdf-parser";
+
+export class ResumeParsingError extends Error {
+  statusCode: number;
+
+  constructor(message: string, statusCode = 422) {
+    super(message);
+    this.name = "ResumeParsingError";
+    this.statusCode = statusCode;
+  }
+}
 
 export async function parseResumeFile(file: File) {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: buffer });
-    const data = await parser.getText();
-    await parser.destroy();
-    return normalizeResumeText(data.text);
+    try {
+      const text = await extractTextFromPdf(buffer);
+      return normalizeResumeText(text);
+    } catch (error) {
+      if (error instanceof PdfExtractionError) {
+        throw new ResumeParsingError(error.message, error.statusCode);
+      }
+
+      throw new ResumeParsingError(
+        "Unable to extract text from this PDF. Please try another file.",
+      );
+    }
   }
 
   if (
