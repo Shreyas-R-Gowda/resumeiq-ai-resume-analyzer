@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { analyzeResumeRequest } from "@/lib/api-client";
 import type { AnalyzeResponse } from "@/types/resume";
 import { cn } from "@/utils/cn";
 
@@ -84,20 +85,15 @@ export function UploadForm() {
     formData.append("useDemo", String(useDemo));
 
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Analysis failed. Please try again.");
-      }
-
+      const data = await analyzeResumeRequest(formData);
       sessionStorage.setItem("resume-analysis", JSON.stringify(data as AnalyzeResponse));
       router.push("/dashboard");
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Analysis failed.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Something went wrong while analyzing the resume.",
+      );
     } finally {
       setProgressStep(0);
       setIsAnalyzing(false);

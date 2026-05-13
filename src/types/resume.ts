@@ -70,3 +70,8 @@ export type AnalyzeResponse = {
   resumeText: string;
   fileName: string;
 };
+
+export type AnalyzeErrorResponse = {
+  success: false;
+  error: string;
+};
