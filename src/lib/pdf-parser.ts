@@ -8,77 +8,75 @@ export class PdfExtractionError extends Error {
   }
 }
 
-export async function extractTextFromPdf(buffer: Buffer) {
+function getPdfFailureMessage(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+
+  if (message.includes("password")) {
+    return "This PDF is password protected. Please upload an unlocked resume PDF.";
+  }
+
+  if (message.includes("invalid pdf") || message.includes("malformed")) {
+    return "This PDF appears to be corrupted or unsupported. Try exporting the resume again as a text-based PDF.";
+  }
+
+  if (message.includes("empty") || message.includes("no text")) {
+    return "We could not detect text in this PDF. It may be a scanned image. Try exporting the resume again as a text-based PDF.";
+  }
+
+  return "Unable to extract text from this PDF. Try exporting the resume again as a text-based PDF.";
+}
+
+export async function extractTextFromPdf(data: Uint8Array) {
   try {
-    const { getDocument, VerbosityLevel } = await import("pdfjs-dist/legacy/build/pdf.mjs");
-    const loadingTask = getDocument({
-      data: new Uint8Array(buffer),
-      disableFontFace: true,
-      isImageDecoderSupported: false,
-      isOffscreenCanvasSupported: false,
-      stopAtErrors: true,
-      useSystemFonts: false,
-      useWorkerFetch: false,
-      verbosity: VerbosityLevel.ERRORS,
+    console.log("[pdf-parser] PDF extraction starting", {
+      byteLength: data.byteLength,
     });
 
-    console.log("[pdf-parser] PDF document loading started");
-    const pdf = await loadingTask.promise;
-    const pages: string[] = [];
+    const { extractText } = await import("unpdf");
+    const result = await extractText(data, { mergePages: false });
 
-    try {
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-        console.log("[pdf-parser] Reading page", {
-          pageNumber,
-          totalPages: pdf.numPages,
+    console.log("[pdf-parser] Pages detected", {
+      totalPages: result.totalPages,
+    });
+
+    const pages = result.text
+      .map((pageText, index) => {
+        const cleaned = pageText
+          .replace(/\u0000/g, " ")
+          .replace(/[ \t]+/g, " ")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+
+        console.log("[pdf-parser] Page extraction result", {
+          pageNumber: index + 1,
+          extractedLength: cleaned.length,
         });
-        const page = await pdf.getPage(pageNumber);
 
-        try {
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items
-            .map((item) => {
-              if (!("str" in item)) {
-                return "";
-              }
+        return cleaned;
+      })
+      .filter(Boolean);
 
-              return item.hasEOL ? `${item.str}\n` : item.str;
-            })
-            .join(" ")
-            .trim();
+    const mergedText = pages.join("\n\n").trim();
 
-          if (pageText) {
-            pages.push(pageText);
-          }
-        } finally {
-          page.cleanup();
-        }
-      }
-    } finally {
-      await pdf.cleanup();
-      await pdf.destroy();
-    }
-
-    if (!pages.length) {
+    if (!mergedText) {
       throw new PdfExtractionError(
-        "Unable to extract text from this PDF. Please try another file.",
+        "We could not detect text in this PDF. It may be a scanned image. Try exporting the resume again as a text-based PDF.",
       );
     }
 
-    console.log("[pdf-parser] PDF parsed", {
-      pageCount: pages.length,
-      extractedLength: pages.join("\n\n").length,
+    console.log("[pdf-parser] PDF parsed successfully", {
+      totalPages: result.totalPages,
+      extractedPages: pages.length,
+      extractedLength: mergedText.length,
     });
 
-    return pages.join("\n\n");
+    return mergedText;
   } catch (error) {
     if (error instanceof PdfExtractionError) {
       throw error;
     }
 
     console.error("[pdf-parser] PDF extraction failed", error);
-    throw new PdfExtractionError(
-      "Unable to extract text from this PDF. Please try another file.",
-    );
+    throw new PdfExtractionError(getPdfFailureMessage(error));
   }
 }

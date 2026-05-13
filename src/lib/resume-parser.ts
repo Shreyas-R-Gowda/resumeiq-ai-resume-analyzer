@@ -13,7 +13,7 @@ export class ResumeParsingError extends Error {
 
 export async function parseResumeFile(file: File) {
   const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const data = new Uint8Array(arrayBuffer);
 
   if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
     try {
@@ -21,7 +21,7 @@ export async function parseResumeFile(file: File) {
         fileName: file.name,
         fileSize: file.size,
       });
-      const text = await extractTextFromPdf(buffer);
+      const text = await extractTextFromPdf(data);
       return normalizeResumeText(text);
     } catch (error) {
       console.error("[resume-parser] PDF extraction failed", error);
@@ -45,6 +45,7 @@ export async function parseResumeFile(file: File) {
         fileName: file.name,
         fileSize: file.size,
       });
+      const buffer = Buffer.from(arrayBuffer);
       const result = await mammoth.extractRawText({ buffer });
       console.log("[resume-parser] DOCX parsed", {
         extractedLength: result.value.length,
