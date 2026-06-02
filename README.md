@@ -20,6 +20,7 @@ The project is designed as a polished portfolio-grade product: a modern Next.js 
 
 ## Screenshots
 
+![Landing](./screenshots/landing.png)
 ![Dashboard](./screenshots/dashboard.png)
 ![Upload](./screenshots/upload.png)
 ![Report](./screenshots/report.png)
